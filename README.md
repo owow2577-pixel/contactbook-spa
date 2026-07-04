@@ -6,8 +6,8 @@ Course: CT313H-Web Technologies and Services.
 
 Semester 3, Academic year: 2025-2026.
 
-**Student ID**: ...
+**Student ID**: B2206025
 
-**Student Name**: ...
+**Student Name**: Pham Nguyen Tuong Vy
 
-**Class Number**: ...
+**Class Number**: M01
