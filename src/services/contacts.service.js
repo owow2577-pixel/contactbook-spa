@@ -24,7 +24,7 @@ async function efetch(url, options = {}) {
 }
 
 function makeContactsService() {
-  const baseUrl = '/api/v1/contacts';
+  const baseUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/contacts`;
 
   async function fetchContacts(page, limit = 10) {
     let url = `${baseUrl}?page=${page}&limit=${limit}`;
