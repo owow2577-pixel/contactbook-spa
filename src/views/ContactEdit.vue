@@ -1,6 +1,7 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
 import ContactForm from '@/components/ContactForm.vue';
 import contactsService from '@/services/contacts.service';
 
@@ -10,45 +11,52 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
-
-const contact = ref(null);
+const queryClient = useQueryClient();
 const message = ref('');
 
-async function getContact(id) {
-  try {
-    contact.value = await contactsService.fetchContact(id);
-  } catch (error) {
-    console.log(error);
+const { data: contact, isError } = useQuery({
+  queryKey: computed(() => ['contact', props.contactId]),
+  queryFn: () => contactsService.fetchContact(props.contactId),
+});
+
+const stopWatch = watch(isError, (val) => {
+  if (val) {
     router.push({
       name: 'notfound',
       params: { pathMatch: route.path.split('/').slice(1) },
       query: route.query,
       hash: route.hash,
     });
+    stopWatch();
   }
-}
+});
 
-async function onUpdateContact(contact) {
-  try {
-    await contactsService.updateContact(contact.get('id'), contact);
+const { mutate: updateContact } = useMutation({
+  mutationFn: (formData) =>
+    contactsService.updateContact(formData.get('id'), formData),
+  onSuccess: () => {
     message.value = 'Liên hệ được cập nhật thành công.';
-  } catch (error) {
-    console.log(error);
-  }
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+  },
+});
+
+const { mutate: deleteContact } = useMutation({
+  mutationFn: (id) => contactsService.deleteContact(id),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    router.push({ name: 'contactbook' });
+  },
+});
+
+function onUpdateContact(formData) {
+  updateContact(formData);
 }
 
-async function onDeleteContact(id) {
+function onDeleteContact(id) {
   if (confirm('Bạn muốn xóa Liên hệ này?')) {
-    try {
-      await contactsService.deleteContact(id);
-      router.push({ name: 'contactbook' });
-    } catch (error) {
-      console.log(error);
-    }
+    deleteContact(id);
   }
 }
-
-getContact(props.contactId);
 </script>
 
 <template>

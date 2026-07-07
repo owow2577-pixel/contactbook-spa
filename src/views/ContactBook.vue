@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
 import ContactCard from '@/components/ContactCard.vue';
 import InputSearch from '@/components/InputSearch.vue';
 import ContactList from '@/components/ContactList.vue';
@@ -9,8 +10,10 @@ import contactsService from '@/services/contacts.service';
 
 const router = useRouter();
 const route = useRoute();
+const queryClient = useQueryClient();
 
-const totalPages = ref(1);
+const selectedIndex = ref(-1);
+const searchText = ref('');
 
 const currentPage = computed(() => {
   const page = Number(route.query?.page);
@@ -18,15 +21,29 @@ const currentPage = computed(() => {
   return page;
 });
 
-const contacts = ref([]);
-const selectedIndex = ref(-1);
-const searchText = ref('');
+const { data } = useQuery({
+  queryKey: computed(() => ['contacts', currentPage.value]),
+  queryFn: () => contactsService.fetchContacts(currentPage.value),
+});
+
+const contacts = computed(() =>
+  (data.value?.contacts ?? []).sort((a, b) => a.name.localeCompare(b.name))
+);
+const totalPages = computed(() => data.value?.metadata?.lastPage ?? 1);
+
+const { mutate: deleteAllContacts } = useMutation({
+  mutationFn: () => contactsService.deleteAllContacts(),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    selectedIndex.value = -1;
+    changeCurrentPage(1);
+  },
+});
 
 const searchableContacts = computed(() =>
-  contacts.value.map((contact) => {
-    const { name, email, address, phone } = contact;
-    return [name, email, address, phone].join('');
-  })
+  contacts.value.map(({ name, email, address, phone }) =>
+    [name, email, address, phone].join('')
+  )
 );
 
 const filteredContacts = computed(() => {
@@ -41,30 +58,9 @@ const selectedContact = computed(() => {
   return filteredContacts.value[selectedIndex.value];
 });
 
-async function retrieveContacts(page) {
-  try {
-    const chunk = await contactsService.fetchContacts(page);
-    totalPages.value = chunk.metadata.lastPage ?? 1;
-    contacts.value = chunk.contacts.sort(
-      (current, next) => current.name.localeCompare(next.name)
-    );
-    selectedIndex.value = -1;
-  } catch (error) {
-    console.log(error);
-  }
-}
-
-async function onDeleteContacts() {
+function onDeleteContacts() {
   if (confirm('Bạn muốn xóa tất cả Liên hệ?')) {
-    try {
-      await contactsService.deleteAllContacts();
-      totalPages.value = 1;
-      contacts.value = [];
-      selectedIndex.value = -1;
-      changeCurrentPage(1);
-    } catch (error) {
-      console.log(error);
-    }
+    deleteAllContacts();
   }
 }
 
@@ -77,7 +73,6 @@ function changeCurrentPage(page) {
 }
 
 watch(searchText, () => (selectedIndex.value = -1));
-watch(currentPage, () => retrieveContacts(currentPage.value), { immediate: true });
 </script>
 
 <template>
@@ -101,7 +96,10 @@ watch(currentPage, () => retrieveContacts(currentPage.value), { immediate: true 
           @update:current-page="changeCurrentPage"
         />
         <div class="w-100"></div>
-        <button class="btn btn-sm btn-primary" @click="retrieveContacts(currentPage)">
+        <button
+          class="btn btn-sm btn-primary"
+          @click="() => queryClient.invalidateQueries({ queryKey: ['contacts'] })"
+        >
           <i class="fas fa-redo"></i> Làm mới
         </button>
         <button class="btn btn-sm btn-success" @click="goToAddContact">

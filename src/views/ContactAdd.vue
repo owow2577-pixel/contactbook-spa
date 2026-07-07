@@ -1,8 +1,10 @@
 <script setup>
 import { ref } from 'vue';
+import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import ContactForm from '@/components/ContactForm.vue';
 import contactsService from '@/services/contacts.service';
 
+const queryClient = useQueryClient();
 const message = ref('');
 
 const emptyContact = {
@@ -13,14 +15,19 @@ const emptyContact = {
   favorite: false,
 };
 
-async function onAddContact(contact) {
-  try {
-    await contactsService.createContact(contact);
+const { mutate: createContact } = useMutation({
+  mutationFn: (formData) => contactsService.createContact(formData),
+  onSuccess: () => {
     message.value = 'Liên hệ đã được thêm thành công.';
-  } catch (error) {
-    console.log(error);
-    message.value = 'Thêm liên hệ thất bại.'+ error.message;
-  }
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+  },
+  onError: (error) => {
+    message.value = 'Thêm liên hệ thất bại.' + error.message;
+  },
+});
+
+function onAddContact(formData) {
+  createContact(formData);
 }
 </script>
 
